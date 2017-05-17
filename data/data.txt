@@ -1,0 +1,2 @@
+https://drive.google.com/open?id=0B4-HMwIdn4yhYWlLalRVTlZtOUU -- chairs_64x64.h5
+null - pretrained model.pkl

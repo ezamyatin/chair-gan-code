@@ -96,4 +96,4 @@ if __name__ == '__main__':
     main_arg_parser.add_argument('--d-to-g', type=int, default=3,
                                  help='D per G trains')
     args = main_arg_parser.parse_args()
-    #main(args)
+    main(args)

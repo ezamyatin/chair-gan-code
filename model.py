@@ -46,7 +46,7 @@ ANGLES2 = [-175.0, -163.0, -151.0, -140.0, -128.0, -117.0, -105.0, -93.0, -82.0,
 ANGLES = [(i, j) for i in ANGLES1 for j in ANGLES2]
 
 
-class IModel():
+class Model:
     def __init__(self):
         self.args = {}
         self.functions = {}

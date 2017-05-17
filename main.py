@@ -78,7 +78,6 @@ def main(args):
 
 if __name__ == '__main__':
     main_arg_parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    main_arg_parser.add_argument()
     main_arg_parser.add_argument('--train-h5', '-t', type=str, required=True, help='Path to h5 train file')
     main_arg_parser.add_argument('--weights', '-w', type=str, default=None, help='Path to model weights')
     main_arg_parser.add_argument('--output', '-o', type=str, required=True, help='Path to output dir')
@@ -87,7 +86,7 @@ if __name__ == '__main__':
     main_arg_parser.add_argument('--epoch-count', '-ec', type=int, default=1000,
                                  help='Number of epochs')
     main_arg_parser.add_argument('--start-epoch', '-se', type=int, default=0,
-                                 help='Start epoch. (Influent on augmentation)')
+                                 help='Start epoch. (Influence to augmentation)')
     main_arg_parser.add_argument('--batch-size', '-bs', type=int, default=16,
                                  help='Count images in batch')
     main_arg_parser.add_argument('--gamma', type=float, default=5e-5,
@@ -96,3 +95,5 @@ if __name__ == '__main__':
                                  help='Inc from augmentation')
     main_arg_parser.add_argument('--d-to-g', type=int, default=3,
                                  help='D per G trains')
+    args = main_arg_parser.parse_args()
+    #main(args)

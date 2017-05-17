@@ -54,24 +54,50 @@ class Model:
         self._build_disc()
         self._build_fn()
 
-    def gen(self, batch):
-        batch = self.prepare_batch(batch)
+    def gen(self, c, v, t):
+        c = one_hot(c, 843)
+        v = np.float32(v)
+        t = np.float32(t)
+        batch = {'c': c, 'v': v, 't': t}
         res = self.functions['gen'](*[batch[k] for k in self.args['gen']])
         return transform_inverse(res)
 
-    def disc(self, batch):
-        batch = self.prepare_batch(batch)
+    def disc(self, x, c, v, t):
+        c = one_hot(c, 843)
+        v = np.float32(v)
+        t = np.float32(t)
+        x = transform(x)
+        batch = {'c': c, 'v': v, 't': t, 'x': x}
         res = self.functions['disc'](*[batch[k] for k in self.args['disc']])
         return res
 
-    def train_gen(self, batch):
-        batch = self.prepare_batch(batch)
+    def train_gen(self, c, v, t):
+        c = one_hot(c, 843)
+        v = np.float32(v)
+        t = np.float32(t)
+        batch = {'c': c, 'v': v, 't': t}
         res = np.array(self.functions['train_gen'](*[batch[k] for k in self.args['train_gen']]))
         assert not np.isnan(res.sum())
         return np.array(res)
 
-    def train_disc(self, batch):
-        batch = self.prepare_batch(batch)
+    def train_disc(self, x, c, v, t):
+        nc = c
+        while (nc == c).any(): nc = np.random.randint(0, 843, len(c))
+        nc = one_hot(nc, 843)
+        c = one_hot(c, 843)
+
+        v = np.float32(v)
+        rands = []
+        for i in range(len(v)): rands.append(np.random.randint(0, len(ANGLES)))
+        nv = np.float32(utils.angle2sincos([ANGLES[i] for i in rands]))
+
+        t = np.float32(t)
+        nt = t.copy()
+        np.random.shuffle(nt)
+
+        x = transform(x)
+
+        batch = {'x': x, 'c': c, 'v': v, 't': t, 'nc': nc, 'nt': nt, 'nv': nv}
         res = np.array(self.functions['train_disc'](*[batch[k] for k in self.args['train_disc']]))
         assert not np.isnan(res.sum())
         return np.array(res)
@@ -98,37 +124,6 @@ class Model:
             gen_params, disc_params = utils.load(file)
             lasagne.layers.set_all_param_values(self.gen_outputs.values(), gen_params)
             lasagne.layers.set_all_param_values(self.disc_outputs.values(), disc_params)
-
-    def prepare_batch(self, batch):
-        n = max(len(i) for i in batch.values())
-
-        if 'label' in batch:
-            batch['nc'] = batch['label']
-            while (batch['nc'] == batch['label']).any():
-                batch['nc'] = np.random.randint(0, 843, n)
-            batch['nc'] = one_hot(batch['nc'], 843)
-
-        if 't' in batch:
-            batch['nt'] = batch['t'].copy()
-            np.random.shuffle(batch['nt'])
-
-        rands = []
-        for i in range(n): rands.append(np.random.randint(0, len(ANGLES)))
-        batch['nv'] = np.float32(utils.angle2sincos([ANGLES[i] for i in rands]))
-
-        if 'image' in batch:
-            batch['image'] = transform(batch['image'])
-            batch['x'] = batch['image']
-
-        if 'label' in batch:
-            if len(batch['label'].shape) == 1:
-                batch['label'] = utils.one_hot(batch['label'], 843)
-            batch['c'] = np.float32(batch['label'])
-
-        if 'angle' in batch:
-            batch['v'] = np.float32(batch['angle'])
-
-        return batch
 
     def _build_gen(self):
         size = 64

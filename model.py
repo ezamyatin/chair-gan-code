@@ -102,12 +102,15 @@ class Model:
     def prepare_batch(self, batch):
         n = max(len(i) for i in batch.values())
 
-        batch['nc'] = batch['label']
-        while (batch['nc'] == batch['label']).any():
-            batch['nc'] = utils.one_hot(np.random.randint(0, 843, n), 843)
+        if 'label' in batch:
+            batch['nc'] = batch['label']
+            while (batch['nc'] == batch['label']).any():
+                batch['nc'] = np.random.randint(0, 843, n)
+            batch['nc'] = one_hot(batch['nc'], 843)
 
-        batch['nt'] = batch['t'].copy()
-        np.random.shuffle(batch['nt'])
+        if 't' in batch:
+            batch['nt'] = batch['t'].copy()
+            np.random.shuffle(batch['nt'])
 
         rands = []
         for i in range(n): rands.append(np.random.randint(0, len(ANGLES)))

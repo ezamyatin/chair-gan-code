@@ -42,7 +42,7 @@ def main(args):
         for batch in dataset(args.batch_size):
             iter_count += 1
             t = time.time()
-            d_err = model.train_disc(batch)
+            d_err = model.train_disc(batch['image'], batch['label'], batch['angle'], batch['t'])
             time_in_train += time.time() - t
 
             disc_err = d_err + disc_err
@@ -50,7 +50,7 @@ def main(args):
             if iter_count % args.d_to_g != 0:
                 continue
             t = time.time()
-            g_err = model.train_gen(batch)
+            g_err = model.train_gen(batch['label'], batch['angle'], batch['t'])
             time_in_train += time.time() - t
             gen_err = g_err + gen_err
             gen_count += 1
@@ -70,7 +70,7 @@ def main(args):
         samples = np.concatenate(samples, axis=1)
         imsave(args.output + '/samples/%04d_data.png' % epoch, samples)
 
-        samples = model.gen(16)
+        samples = model.gen(batch['label'], batch['angle'], batch['t'])
         samples = np.concatenate(samples, axis=1)
         samples = np.concatenate(samples, axis=1)
         imsave(args.output + '/samples/%04d_gen.png' % epoch, samples)

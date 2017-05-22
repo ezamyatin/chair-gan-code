@@ -68,7 +68,8 @@ def main(args):
         print('time in train: % 1.3lf' % time_in_train)
         model.save(args.output + '/model.pkl')
 
-        samples = next(dataset(16, parallelize=False))['image']
+        batch = next(dataset(16, parallelize=False))
+        samples = batch['image']
         samples = samples.reshape((4, 4, 64, 64, 4))
         samples = np.concatenate(samples, axis=1)
         samples = np.concatenate(samples, axis=1)

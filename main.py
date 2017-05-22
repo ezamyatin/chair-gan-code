@@ -2,6 +2,9 @@ import glob
 import os
 import sys
 import time
+
+from tqdm import tqdm
+
 from model import Model
 import argparse
 import numpy as np
@@ -13,7 +16,7 @@ from dataset import H5PYDatasetAugRand
 def main(args):
     print('compile')
     start = time.time()
-    model = Model()
+    model = Model(args.reg)
     print('compiled in %1.3lf' % (time.time() - start))
 
     if args.weights is not None:

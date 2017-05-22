@@ -5,10 +5,11 @@ import numpy as np
 import theano
 import theano.tensor as T
 from lasagne.layers import InputLayer, DenseLayer, TransposedConv2DLayer, Conv2DLayer, \
-    ReshapeLayer, ConcatLayer, FlattenLayer, NonlinearityLayer, ElemwiseMergeLayer, get_all_layers
+    ReshapeLayer, ConcatLayer, FlattenLayer, NonlinearityLayer, ElemwiseMergeLayer, get_all_layers, dropout
 from lasagne.layers import get_output, get_all_params
 from lasagne.nonlinearities import rectify, sigmoid, tanh, LeakyRectify
 from lasagne.objectives import squared_error
+from lasagne.regularization import regularize_network_params
 from lasagne.updates import adam
 
 import utils
@@ -47,7 +48,8 @@ ANGLES = [(i, j) for i in ANGLES1 for j in ANGLES2]
 
 
 class Model:
-    def __init__(self):
+    def __init__(self, reg=False):
+        self.reg = reg
         self.args = {}
         self.functions = {}
         self._build_gen()
@@ -135,35 +137,47 @@ class Model:
 
         layer_c = inputs['c']
         layer_c = DenseLayer(layer_c, 512, nonlinearity=rectify)
+        layer_c.params[layer_c.W].add('dense')
         layer_c = DenseLayer(layer_c, 512, nonlinearity=rectify)
+        layer_c.params[layer_c.W].add('dense')
 
         layer_v = inputs['v']
         layer_v = DenseLayer(layer_v, 512, nonlinearity=rectify)
+        layer_v.params[layer_v.W].add('dense')
         layer_v = DenseLayer(layer_v, 512, nonlinearity=rectify)
+        layer_v.params[layer_v.W].add('dense')
 
         layer_t = inputs['t']
         layer_t = DenseLayer(layer_t, 512, nonlinearity=rectify)
+        layer_t.params[layer_t.W].add('dense')
         layer_t = DenseLayer(layer_t, 512, nonlinearity=rectify)
+        layer_t.params[layer_t.W].add('dense')
 
         layer = ConcatLayer([layer_c, layer_v, layer_t])
         layer = DenseLayer(layer, 1024, nonlinearity=rectify)
+        layer.params[layer.W].add('dense')
         layer = DenseLayer(layer, 1024, nonlinearity=rectify)
+        layer.params[layer.W].add('dense')
 
         layer = DenseLayer(layer, 768 * s16 * s16, nonlinearity=rectify)
+        layer.params[layer.W].add('dense')
         layer = ReshapeLayer(layer, (-1, 768, s16, s16))
 
         layer = InstanceNormalization(layer, True)
         layer = weight_norm(
             TransposedConv2DLayer(layer, 384, 5, 2, 'same', output_size=(s8, s8), nonlinearity=None, b=None),
             transposed=True)
+        if self.reg: layer = dropout(layer)
         layer = NonlinearityLayer(layer, rectify)
         layer = weight_norm(
             TransposedConv2DLayer(layer, 256, 5, 2, 'same', output_size=(s4, s4), nonlinearity=None, b=None),
             transposed=True)
+        if self.reg: layer = dropout(layer)
         layer = NonlinearityLayer(layer, rectify)
         layer = weight_norm(
             TransposedConv2DLayer(layer, 192, 5, 2, 'same', output_size=(s2, s2), nonlinearity=None, b=None),
             transposed=True)
+        if self.reg: layer = dropout(layer)
         layer = NonlinearityLayer(layer, rectify)
 
         layer_img = TransposedConv2DLayer(layer, 3, 5, 2, 'same', output_size=(s, s), nonlinearity=tanh)
@@ -184,41 +198,56 @@ class Model:
 
         layer_c = inputs['c']
         layer_c = DenseLayer(layer_c, 512, nonlinearity=leaky_rectify)
+        layer_c.params[layer_c.W].add('dense')
         layer_c = (DenseLayer(layer_c, 512, nonlinearity=leaky_rectify))
+        layer_c.params[layer_c.W].add('dense')
 
         layer_v = inputs['v']
         layer_v = DenseLayer(layer_v, 512, nonlinearity=leaky_rectify)
+        layer_v.params[layer_v.W].add('dense')
         layer_v = (DenseLayer(layer_v, 512, nonlinearity=leaky_rectify))
+        layer_v.params[layer_v.W].add('dense')
 
         layer_t = inputs['t']
         layer_t = DenseLayer(layer_t, 512, nonlinearity=leaky_rectify)
+        layer_t.params[layer_t.W].add('dense')
         layer_t = (DenseLayer(layer_t, 512, nonlinearity=leaky_rectify))
+        layer_t.params[layer_t.W].add('dense')
 
         layer_i = ConcatLayer([layer_c, layer_v, layer_t])
         layer_i = DenseLayer(layer_i, 1024, nonlinearity=leaky_rectify)
+        layer_i.params[layer_i.W].add('dense')
         layer_i = DenseLayer(layer_i, 1024, nonlinearity=None)
+        layer_i.params[layer_i.W].add('dense')
 
         layer_x = inputs['x']
         layer_x_n = layer_x
         layer_x = weight_norm(Conv2DLayer(layer_x_n, 64, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
         layer_x = NonlinearityLayer(layer_x, leaky_rectify)
         layer_x = weight_norm(Conv2DLayer(layer_x, 64, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
         layer_x = NonlinearityLayer(layer_x, leaky_rectify)
         layer_x = weight_norm(Conv2DLayer(layer_x, 128, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
         layer_x = NonlinearityLayer(layer_x, leaky_rectify)
         layer_x = weight_norm(Conv2DLayer(layer_x, 256, 5, 2, 'same', nonlinearity=None, b=None))
         layer_x = NonlinearityLayer(layer_x, leaky_rectify)
 
         layer_x = FlattenLayer(layer_x)
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
+        layer_x.params[layer_x.W].add('dense')
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=None)
+        layer_x.params[layer_x.W].add('dense')
 
         layer = ElemwiseMergeLayer([layer_i, layer_x], T.mul)
         layer = ConcatLayer([layer, layer_x, layer_i])
         layer = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        layer.params[layer.W].add('dense')
 
         layer_s = layer
         layer_s = DenseLayer(layer_s, 1, nonlinearity=None)
+        layer_s.params[layer_s.W].add('dense')
         layer_s_0 = NonlinearityLayer(layer_s, nonlinearity=sigmoid)
         layer_s_1 = NonlinearityLayer(layer_s, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
         layer_s_2 = NonlinearityLayer(layer_s, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
@@ -280,10 +309,18 @@ class Model:
         neg_disc_loss_s = -neg_s_c.mean()
         neg_disc_loss_s += (-neg_s_t * (squared_error(neg_t_var, t_var))).mean()
         neg_disc_loss_s += (-neg_s_v * squared_error(neg_v_var, v_var)).mean()
+        disc_loss_reg = regularize_network_params(self.disc_outputs['s'],
+                                                  lambda x: T.mean(x**2),
+                                                  tags={'regularizable':True, 'dense':True}).mean()
         disc_losses = [disc_loss_s, disc_loss_fs, neg_disc_loss_s]
+        if self.reg: disc_losses.append(disc_loss_reg)
 
         gen_loss_s = -fs_1.mean()
+        gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
+                                                  lambda x: T.mean(x ** 2),
+                                                  tags={'regularizable': True, 'dense': True}).mean()
         gen_losses = [gen_loss_s]
+        if self.reg: gen_losses.append(gen_loss_reg)
         self.lr = theano.shared(np.float32(2e-4))
 
         gen_params = get_all_params(self.gen_outputs.values(), trainable=True)
@@ -296,7 +333,7 @@ class Model:
             'gen': theano.function([self.gen_inputs['c'].input_var,
                                     self.gen_inputs['v'].input_var,
                                     self.gen_inputs['t'].input_var],
-                                   get_output(self.gen_outputs['x'])),
+                                   get_output(self.gen_outputs['x'], deterministic=True)),
             'train_gen': theano.function([self.gen_inputs['c'].input_var,
                                           self.gen_inputs['v'].input_var,
                                           self.gen_inputs['t'].input_var],
@@ -308,7 +345,7 @@ class Model:
                                                 inputs={self.disc_inputs['x']: x_var,
                                                         self.disc_inputs['c']: c_var,
                                                         self.disc_inputs['v']: v_var,
-                                                        self.disc_inputs['t']: t_var}),
+                                                        self.disc_inputs['t']: t_var}, deterministic=True),
                                      ]),
 
             'train_disc': theano.function([self.gen_inputs['c'].input_var,

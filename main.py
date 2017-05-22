@@ -95,5 +95,8 @@ if __name__ == '__main__':
                                  help='Inc from augmentation')
     main_arg_parser.add_argument('--d-to-g', type=int, default=3,
                                  help='D per G trains')
+    main_arg_parser.add_argument('--reg', action='store_true',
+                                 help='Use regularization')
+
     args = main_arg_parser.parse_args()
     main(args)

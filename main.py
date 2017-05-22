@@ -69,11 +69,13 @@ def main(args):
         model.save(args.output + '/model.pkl')
 
         samples = next(dataset(16, parallelize=False))['image']
+        samples = samples.reshape((4, 4, 64, 64, 4))
         samples = np.concatenate(samples, axis=1)
         samples = np.concatenate(samples, axis=1)
         imsave(args.output + '/samples/%04d_data.png' % epoch, samples)
 
         samples = model.gen(batch['label'], batch['angle'], batch['t'])
+        samples = samples.reshape((4, 4, 64, 64, 4))
         samples = np.concatenate(samples, axis=1)
         samples = np.concatenate(samples, axis=1)
         imsave(args.output + '/samples/%04d_gen.png' % epoch, samples)

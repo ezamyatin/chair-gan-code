@@ -42,7 +42,7 @@ def main(args):
         disc_count, disc_err = 0, 0
         gen_count, gen_err = 0, 0
         time_in_train = 0
-        for batch in dataset(args.batch_size):
+        for batch in tqdm(dataset(args.batch_size), total=args.batch_count):
             iter_count += 1
             t = time.time()
             d_err = model.train_disc(batch['image'], batch['label'], batch['angle'], batch['t'])

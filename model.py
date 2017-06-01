@@ -57,7 +57,8 @@ class Model:
         self._build_fn()
 
     def gen(self, c, v, t):
-        c = one_hot(c, 843)
+        if hasattr(c, 'shape') and len(c.shape) != 2:
+            c = one_hot(c, 843)
         v = np.float32(v)
         t = np.float32(t)
         batch = {'c': c, 'v': v, 't': t}

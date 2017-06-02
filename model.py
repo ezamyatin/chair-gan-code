@@ -311,15 +311,15 @@ class Model:
         neg_disc_loss_s += (-neg_s_t * (squared_error(neg_t_var, t_var))).mean()
         neg_disc_loss_s += (-neg_s_v * squared_error(neg_v_var, v_var)).mean()
         disc_loss_reg = regularize_network_params(self.disc_outputs['s'],
-                                                  lambda x: T.mean(x**2),
-                                                  tags={'regularizable':True, 'dense':True}).mean()
+                                                  lambda x: T.mean(x ** 2),
+                                                  tags={'regularizable': True, 'dense': True}).mean()
         disc_losses = [disc_loss_s, disc_loss_fs, neg_disc_loss_s]
         if self.reg: disc_losses.append(disc_loss_reg)
 
         gen_loss_s = -fs_1.mean()
         gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
-                                                  lambda x: T.mean(x ** 2),
-                                                  tags={'regularizable': True, 'dense': True}).mean()
+                                                 lambda x: T.mean(x ** 2),
+                                                 tags={'regularizable': True, 'dense': True}).mean()
         gen_losses = [gen_loss_s]
         if self.reg: gen_losses.append(gen_loss_reg)
         self.lr = theano.shared(np.float32(2e-4))
@@ -396,3 +396,187 @@ class Model:
         classify.last_x = np.inf
         classify.last_f = np.inf
         self.classify = classify
+
+
+class ModelSplit(Model):
+    def _build_disc(self):
+        inputs = OrderedDict()
+        inputs['x'] = InputLayer((None, 4, 64, 64))
+        inputs['c'] = InputLayer((None, 843))
+        inputs['v'] = InputLayer((None, 4))
+        inputs['t'] = InputLayer((None, 8))
+
+        layer_c = inputs['c']
+        layer_c = DenseLayer(layer_c, 512, nonlinearity=leaky_rectify)
+        layer_c.params[layer_c.W].add('dense')
+        layer_c = (DenseLayer(layer_c, 512, nonlinearity=leaky_rectify))
+        layer_c.params[layer_c.W].add('dense')
+
+        layer_v = inputs['v']
+        layer_v = DenseLayer(layer_v, 512, nonlinearity=leaky_rectify)
+        layer_v.params[layer_v.W].add('dense')
+        layer_v = (DenseLayer(layer_v, 512, nonlinearity=leaky_rectify))
+        layer_v.params[layer_v.W].add('dense')
+
+        layer_t = inputs['t']
+        layer_t = DenseLayer(layer_t, 512, nonlinearity=leaky_rectify)
+        layer_t.params[layer_t.W].add('dense')
+        layer_t = (DenseLayer(layer_t, 512, nonlinearity=leaky_rectify))
+        layer_t.params[layer_t.W].add('dense')
+
+        layer_i = ConcatLayer([layer_c, layer_v, layer_t])
+        layer_i = DenseLayer(layer_i, 1024, nonlinearity=leaky_rectify)
+        layer_i.params[layer_i.W].add('dense')
+        layer_i = DenseLayer(layer_i, 1024, nonlinearity=None)
+        layer_i.params[layer_i.W].add('dense')
+
+        layer_x = inputs['x']
+        layer_x_n = layer_x
+        layer_x = weight_norm(Conv2DLayer(layer_x_n, 64, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+        layer_x = weight_norm(Conv2DLayer(layer_x, 64, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+        layer_x = weight_norm(Conv2DLayer(layer_x, 128, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+        layer_x = weight_norm(Conv2DLayer(layer_x, 256, 5, 2, 'same', nonlinearity=None, b=None))
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = FlattenLayer(layer_x)
+        layer_x = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
+        layer_x.params[layer_x.W].add('dense')
+
+        layer_r = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
+        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+
+        layer_x = DenseLayer(layer_x, 1024, nonlinearity=None)
+        layer_x.params[layer_x.W].add('dense')
+
+        layer = ElemwiseMergeLayer([layer_i, layer_x], T.mul)
+        layer = ConcatLayer([layer, layer_x, layer_i])
+        layer = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        layer.params[layer.W].add('dense')
+
+        layer_s = layer
+        layer_s = DenseLayer(layer_s, 1, nonlinearity=None)
+        layer_s.params[layer_s.W].add('dense')
+        layer_s_0 = NonlinearityLayer(layer_s, nonlinearity=sigmoid)
+        layer_s_1 = NonlinearityLayer(layer_s, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        layer_s_2 = NonlinearityLayer(layer_s, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+
+        outputs = OrderedDict()
+        outputs['s'] = layer_s_0
+        outputs['log(s)'] = layer_s_1
+        outputs['log(1-s)'] = layer_s_2
+        outputs['r'] = layer_r_0
+        outputs['log(r)'] = layer_r_1
+        outputs['log(1-r)'] = layer_r_2
+
+        self.disc_inputs = inputs
+        self.disc_outputs = outputs
+
+    def _build_fn(self):
+        c_var = self.gen_inputs['c'].input_var
+        v_var = self.gen_inputs['v'].input_var
+        t_var = self.gen_inputs['t'].input_var
+        x_var = self.disc_inputs['x'].input_var
+        neg_c_var = T.fmatrix()
+        neg_t_var = T.fmatrix()
+        neg_v_var = T.fmatrix()
+        fx = get_output(self.gen_outputs['x'], deterministic=False)
+
+        s, s_inv, r, r_inv = get_output([self.disc_outputs['log(s)'], self.disc_outputs['log(1-s)'],
+                                         self.disc_outputs['log(r)'], self.disc_outputs['log(1-r)']],
+                                        inputs={self.disc_inputs['x']: x_var,
+                                                self.disc_inputs['c']: c_var,
+                                                self.disc_inputs['v']: v_var,
+                                                self.disc_inputs['t']: t_var}, deterministic=False)
+
+        gs, gs_inv, gr, gr_inv = get_output([self.disc_outputs['log(s)'], self.disc_outputs['log(1-s)'],
+                                             self.disc_outputs['log(r)'], self.disc_outputs['log(1-r)']],
+                                            inputs={self.disc_inputs['x']: fx,
+                                                    self.disc_inputs['c']: c_var,
+                                                    self.disc_inputs['v']: v_var,
+                                                    self.disc_inputs['t']: t_var}, deterministic=False)
+
+        neg_s_c = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
+                                                                    self.disc_inputs['c']: neg_c_var,
+                                                                    self.disc_inputs['v']: v_var,
+                                                                    self.disc_inputs['t']: t_var}, deterministic=False)
+
+        neg_s_v = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
+                                                                    self.disc_inputs['c']: c_var,
+                                                                    self.disc_inputs['v']: neg_v_var,
+                                                                    self.disc_inputs['t']: t_var}, deterministic=False)
+
+        neg_s_t = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
+                                                                    self.disc_inputs['c']: c_var,
+                                                                    self.disc_inputs['v']: v_var,
+                                                                    self.disc_inputs['t']: neg_t_var}, deterministic=False)
+
+        disc_loss_s, disc_loss_r = -s.mean(), -r.mean()
+        disc_loss_gr = -gr_inv.mean()
+        disc_loss_neg = -neg_s_c.mean()
+        disc_loss_neg += (-neg_s_t * (squared_error(neg_t_var, t_var))).mean()
+        disc_loss_neg += (-neg_s_v * squared_error(neg_v_var, v_var)).mean()
+        disc_loss_reg = regularize_network_params(self.disc_outputs['s'],
+                                                  lambda x: T.mean(x ** 2),
+                                                  tags={'regularizable': True, 'dense': True}).mean()
+        disc_losses = [disc_loss_s, disc_loss_r, disc_loss_gr, disc_loss_neg]
+        if self.reg: disc_losses.append(disc_loss_reg)
+
+        gen_loss_gs, gen_loss_gr = -gs.mean(), -gr.mean()
+        gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
+                                                 lambda x: T.mean(x ** 2),
+                                                 tags={'regularizable': True, 'dense': True}).mean()
+        gen_losses = [gen_loss_gs, gen_loss_gr, gen_loss_reg]
+        if self.reg: gen_losses.append(gen_loss_reg)
+        self.lr = theano.shared(np.float32(2e-4))
+
+        gen_params = get_all_params(self.gen_outputs.values(), trainable=True)
+        self.gen_updates = adam(sum(gen_losses), gen_params, self.lr, beta1=0.5)
+
+        disc_params = get_all_params(self.disc_outputs.values(), trainable=True)
+        self.disc_updates = adam(sum(disc_losses), disc_params, self.lr, beta1=0.5)
+
+        self.functions = {
+            'gen': theano.function([self.gen_inputs['c'].input_var,
+                                    self.gen_inputs['v'].input_var,
+                                    self.gen_inputs['t'].input_var],
+                                   get_output(self.gen_outputs['x'], deterministic=True)),
+            'train_gen': theano.function([self.gen_inputs['c'].input_var,
+                                          self.gen_inputs['v'].input_var,
+                                          self.gen_inputs['t'].input_var],
+                                         gen_losses,
+                                         updates=self.gen_updates),
+
+            'disc': theano.function([x_var, c_var, v_var, t_var],
+                                    [get_output(self.disc_outputs['s'],
+                                                inputs={self.disc_inputs['x']: x_var,
+                                                        self.disc_inputs['c']: c_var,
+                                                        self.disc_inputs['v']: v_var,
+                                                        self.disc_inputs['t']: t_var}, deterministic=True),
+                                     ]),
+
+            'train_disc': theano.function([self.gen_inputs['c'].input_var,
+                                           neg_c_var,
+                                           neg_v_var,
+                                           neg_t_var,
+                                           self.gen_inputs['v'].input_var,
+                                           self.gen_inputs['t'].input_var,
+                                           x_var],
+                                          disc_losses,
+                                          updates=self.disc_updates),
+        }
+
+        self.args['gen'] = ('c', 'v', 't')
+        self.args['train_gen'] = ('c', 'v', 't')
+        self.args['disc'] = ('x', 'c', 'v', 't')
+        self.args['train_disc'] = ('c', 'nc', 'nv', 'nt', 'v', 't', 'x')

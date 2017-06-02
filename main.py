@@ -5,7 +5,7 @@ import time
 
 from tqdm import tqdm
 
-from model import Model
+from model import Model, ModelSplit
 import argparse
 import numpy as np
 from scipy.misc import imsave
@@ -16,7 +16,7 @@ from dataset import H5PYDatasetAugRand
 def main(args):
     print('compile')
     start = time.time()
-    model = Model(args.reg)
+    model = ModelSplit(args.reg)
     print('compiled in %1.3lf' % (time.time() - start))
 
     if args.weights is not None:

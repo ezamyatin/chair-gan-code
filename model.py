@@ -529,14 +529,14 @@ class ModelSplit(Model):
         disc_loss_reg = regularize_network_params(self.disc_outputs['s'],
                                                   lambda x: T.mean(x ** 2),
                                                   tags={'regularizable': True, 'dense': True}).mean()
-        disc_losses = [disc_loss_s, disc_loss_r, disc_loss_gr, disc_loss_neg]
+        disc_losses = [disc_loss_s * 10,  disc_loss_neg * 10, disc_loss_r, disc_loss_gr]
         if self.reg: disc_losses.append(disc_loss_reg)
 
         gen_loss_gs, gen_loss_gr = -gs.mean(), -gr.mean()
         gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
                                                  lambda x: T.mean(x ** 2),
                                                  tags={'regularizable': True, 'dense': True}).mean()
-        gen_losses = [gen_loss_gs, gen_loss_gr, gen_loss_reg]
+        gen_losses = [gen_loss_gs, gen_loss_gr]
         if self.reg: gen_losses.append(gen_loss_reg)
         self.lr = theano.shared(np.float32(2e-4))
 
@@ -580,3 +580,184 @@ class ModelSplit(Model):
         self.args['train_gen'] = ('c', 'v', 't')
         self.args['disc'] = ('x', 'c', 'v', 't')
         self.args['train_disc'] = ('c', 'nc', 'nv', 'nt', 'v', 't', 'x')
+
+
+class ModelDeepSplit(ModelSplit):
+    def _build_disc(self):
+        inputs = OrderedDict()
+        inputs['x'] = InputLayer((None, 4, 64, 64))
+        inputs['c'] = InputLayer((None, 843))
+        inputs['v'] = InputLayer((None, 4))
+        inputs['t'] = InputLayer((None, 8))
+
+        layer_c = inputs['c']
+        layer_c = DenseLayer(layer_c, 512, nonlinearity=leaky_rectify)
+        layer_c.params[layer_c.W].add('dense')
+        layer_c = (DenseLayer(layer_c, 512, nonlinearity=leaky_rectify))
+        layer_c.params[layer_c.W].add('dense')
+
+        layer_v = inputs['v']
+        layer_v = DenseLayer(layer_v, 512, nonlinearity=leaky_rectify)
+        layer_v.params[layer_v.W].add('dense')
+        layer_v = (DenseLayer(layer_v, 512, nonlinearity=leaky_rectify))
+        layer_v.params[layer_v.W].add('dense')
+
+        layer_t = inputs['t']
+        layer_t = DenseLayer(layer_t, 512, nonlinearity=leaky_rectify)
+        layer_t.params[layer_t.W].add('dense')
+        layer_t = (DenseLayer(layer_t, 512, nonlinearity=leaky_rectify))
+        layer_t.params[layer_t.W].add('dense')
+
+        layer_i = ConcatLayer([layer_c, layer_v, layer_t])
+        layer_i = DenseLayer(layer_i, 1024, nonlinearity=leaky_rectify)
+        layer_i.params[layer_i.W].add('dense')
+        layer_i = DenseLayer(layer_i, 1024, nonlinearity=None)
+        layer_i.params[layer_i.W].add('dense')
+
+        layer_x = inputs['x']
+        layer_x = layer_x
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 64, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 64, 3, 1, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 128, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 128, 3, 1, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 256, 5, 2, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 256, 3, 1, 'same', nonlinearity=None, b=None))
+        if self.reg: layer_x = dropout(layer_x)
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 512, 5, 2, 'same', nonlinearity=None, b=None))
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = weight_norm(Conv2DLayer(layer_x, 512, 3, 1, 'same', nonlinearity=None, b=None))
+        layer_x = NonlinearityLayer(layer_x, leaky_rectify)
+
+        layer_x = FlattenLayer(layer_x)
+        layer_x = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
+        layer_x.params[layer_x.W].add('dense')
+
+        layer_r = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
+        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+
+        layer_x = DenseLayer(layer_x, 1024, nonlinearity=None)
+        layer_x.params[layer_x.W].add('dense')
+
+        layer = ElemwiseMergeLayer([layer_i, layer_x], T.mul)
+        layer = ConcatLayer([layer, layer_x, layer_i])
+        layer = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        layer.params[layer.W].add('dense')
+
+        layer_s = layer
+        layer_s = DenseLayer(layer_s, 1, nonlinearity=None)
+        layer_s.params[layer_s.W].add('dense')
+        layer_s_0 = NonlinearityLayer(layer_s, nonlinearity=sigmoid)
+        layer_s_1 = NonlinearityLayer(layer_s, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        layer_s_2 = NonlinearityLayer(layer_s, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+
+        outputs = OrderedDict()
+        outputs['s'] = layer_s_0
+        outputs['log(s)'] = layer_s_1
+        outputs['log(1-s)'] = layer_s_2
+        outputs['r'] = layer_r_0
+        outputs['log(r)'] = layer_r_1
+        outputs['log(1-r)'] = layer_r_2
+
+        self.disc_inputs = inputs
+        self.disc_outputs = outputs
+
+    def _build_gen(self):
+        size = 64
+        s, s2, s4, s8, s16 = size, size // 2, size // 4, size // 8, size // 16
+        inputs = OrderedDict()
+        inputs['c'] = InputLayer((None, 843))
+        inputs['v'] = InputLayer((None, 4))
+        inputs['t'] = InputLayer((None, 8))
+
+        layer_c = inputs['c']
+        layer_c = DenseLayer(layer_c, 512, nonlinearity=rectify)
+        layer_c.params[layer_c.W].add('dense')
+        layer_c = DenseLayer(layer_c, 512, nonlinearity=rectify)
+        layer_c.params[layer_c.W].add('dense')
+
+        layer_v = inputs['v']
+        layer_v = DenseLayer(layer_v, 512, nonlinearity=rectify)
+        layer_v.params[layer_v.W].add('dense')
+        layer_v = DenseLayer(layer_v, 512, nonlinearity=rectify)
+        layer_v.params[layer_v.W].add('dense')
+
+        layer_t = inputs['t']
+        layer_t = DenseLayer(layer_t, 512, nonlinearity=rectify)
+        layer_t.params[layer_t.W].add('dense')
+        layer_t = DenseLayer(layer_t, 512, nonlinearity=rectify)
+        layer_t.params[layer_t.W].add('dense')
+
+        layer = ConcatLayer([layer_c, layer_v, layer_t])
+        layer = DenseLayer(layer, 1024, nonlinearity=rectify)
+        layer.params[layer.W].add('dense')
+        layer = DenseLayer(layer, 1024, nonlinearity=rectify)
+        layer.params[layer.W].add('dense')
+
+        layer = DenseLayer(layer, 768 * s16 * s16, nonlinearity=rectify)
+        layer.params[layer.W].add('dense')
+        layer = ReshapeLayer(layer, (-1, 768, s16, s16))
+
+        layer = InstanceNormalization(layer, True)
+
+        layer = weight_norm(
+            TransposedConv2DLayer(layer, 384, 5, 2, 'same', output_size=(s8, s8), nonlinearity=None, b=None),
+            transposed=True)
+        if self.reg: layer = dropout(layer)
+        layer = NonlinearityLayer(layer, rectify)
+
+        layer = weight_norm(Conv2DLayer(layer, 384, 3, 1, 'same', nonlinearity=None, b=None))
+        if self.reg: layer = dropout(layer)
+        layer = NonlinearityLayer(layer, rectify)
+
+        layer = weight_norm(
+            TransposedConv2DLayer(layer, 256, 5, 2, 'same', output_size=(s4, s4), nonlinearity=None, b=None),
+            transposed=True)
+        if self.reg: layer = dropout(layer)
+        layer = NonlinearityLayer(layer, rectify)
+
+        layer = weight_norm(Conv2DLayer(layer, 256, 3, 1, 'same', nonlinearity=None, b=None))
+        if self.reg: layer = dropout(layer)
+        layer = NonlinearityLayer(layer, rectify)
+
+        layer = weight_norm(
+            TransposedConv2DLayer(layer, 192, 5, 2, 'same', output_size=(s2, s2), nonlinearity=None, b=None),
+            transposed=True)
+        if self.reg: layer = dropout(layer)
+        layer = NonlinearityLayer(layer, rectify)
+
+        layer = weight_norm(Conv2DLayer(layer, 192, 3, 1, 'same', nonlinearity=None, b=None))
+        if self.reg: layer = dropout(layer)
+        layer = NonlinearityLayer(layer, rectify)
+
+        layer_img = TransposedConv2DLayer(layer, 3, 5, 2, 'same', output_size=(s, s), nonlinearity=tanh)
+        layer_msk = TransposedConv2DLayer(layer, 1, 5, 2, 'same', output_size=(s, s), nonlinearity=sigmoid)
+
+        layer = ConcatLayer([layer_img, layer_msk])
+        outputs = OrderedDict()
+        outputs['x'] = layer
+        self.gen_inputs = inputs
+        self.gen_outputs = outputs

@@ -536,7 +536,7 @@ class ModelSplit(Model):
         gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
                                                  lambda x: T.mean(x ** 2),
                                                  tags={'regularizable': True, 'dense': True}).mean()
-        gen_losses = [gen_loss_gs, gen_loss_gr]
+        gen_losses = [gen_loss_gs * 10, gen_loss_gr]
         if self.reg: gen_losses.append(gen_loss_reg)
         self.lr = theano.shared(np.float32(2e-4))
 
@@ -651,14 +651,6 @@ class ModelDeepSplit(ModelSplit):
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
         layer_x.params[layer_x.W].add('dense')
 
-        layer_r = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
-        layer_r.params[layer_r.W].add('dense')
-        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
-        layer_r.params[layer_r.W].add('dense')
-        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
-        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
-        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
-
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=None)
         layer_x.params[layer_x.W].add('dense')
 
@@ -667,7 +659,17 @@ class ModelDeepSplit(ModelSplit):
         layer = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
         layer.params[layer.W].add('dense')
 
+        layer_r = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
+        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+
         layer_s = layer
+        layer_s = DenseLayer(layer_s, 1024, nonlinearity=leaky_rectify)
+        layer_s.params[layer_s.W].add('dense')
         layer_s = DenseLayer(layer_s, 1, nonlinearity=None)
         layer_s.params[layer_s.W].add('dense')
         layer_s_0 = NonlinearityLayer(layer_s, nonlinearity=sigmoid)

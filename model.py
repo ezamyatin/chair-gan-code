@@ -519,7 +519,8 @@ class ModelSplit(Model):
         neg_s_t = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
                                                                     self.disc_inputs['c']: c_var,
                                                                     self.disc_inputs['v']: v_var,
-                                                                    self.disc_inputs['t']: neg_t_var}, deterministic=False)
+                                                                    self.disc_inputs['t']: neg_t_var},
+                             deterministic=False)
 
         disc_loss_s, disc_loss_r = -s.mean(), -r.mean()
         disc_loss_gr = -gr_inv.mean()
@@ -529,14 +530,13 @@ class ModelSplit(Model):
         disc_loss_reg = regularize_network_params(self.disc_outputs['s'],
                                                   lambda x: T.mean(x ** 2),
                                                   tags={'regularizable': True, 'dense': True}).mean()
-        disc_losses = [disc_loss_s * 10,  disc_loss_neg * 10, disc_loss_r, disc_loss_gr]
+        disc_losses = [disc_loss_s * 10, disc_loss_neg * 10, disc_loss_r, disc_loss_gr]
         if self.reg: disc_losses.append(disc_loss_reg)
 
         gen_loss_gs, gen_loss_gr = -gs.mean(), -gr.mean()
         gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
                                                  lambda x: T.mean(x ** 2),
                                                  tags={'regularizable': True, 'dense': True}).mean()
-
         gen_losses = [gen_loss_gs, gen_loss_gr]
         if self.reg: gen_losses.append(gen_loss_reg)
         self.lr = theano.shared(np.float32(2e-4))
@@ -583,7 +583,7 @@ class ModelSplit(Model):
         self.args['train_disc'] = ('c', 'nc', 'nv', 'nt', 'v', 't', 'x')
 
 
-class ModelDeepSplit(ModelSplit):
+class ModelDeepSplit(Model):
     def _build_disc(self):
         inputs = OrderedDict()
         inputs['x'] = InputLayer((None, 4, 64, 64))
@@ -660,17 +660,17 @@ class ModelDeepSplit(ModelSplit):
         layer = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
         layer.params[layer.W].add('dense')
 
-        layer_r = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
-        layer_r.params[layer_r.W].add('dense')
-        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
-        layer_r.params[layer_r.W].add('dense')
-        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
-        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
-        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+        # layer_r = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        # layer_r.params[layer_r.W].add('dense')
+        # layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
+        # layer_r.params[layer_r.W].add('dense')
+        # layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
+        # layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        # layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
 
         layer_s = layer
-        layer_s = DenseLayer(layer_s, 1024, nonlinearity=leaky_rectify)
-        layer_s.params[layer_s.W].add('dense')
+        # layer_s = DenseLayer(layer_s, 1024, nonlinearity=leaky_rectify)
+        # layer_s.params[layer_s.W].add('dense')
         layer_s = DenseLayer(layer_s, 1, nonlinearity=None)
         layer_s.params[layer_s.W].add('dense')
         layer_s_0 = NonlinearityLayer(layer_s, nonlinearity=sigmoid)
@@ -681,9 +681,9 @@ class ModelDeepSplit(ModelSplit):
         outputs['s'] = layer_s_0
         outputs['log(s)'] = layer_s_1
         outputs['log(1-s)'] = layer_s_2
-        outputs['r'] = layer_r_0
-        outputs['log(r)'] = layer_r_1
-        outputs['log(1-r)'] = layer_r_2
+        # outputs['r'] = layer_r_0
+        # outputs['log(r)'] = layer_r_1
+        # outputs['log(1-r)'] = layer_r_2
 
         self.disc_inputs = inputs
         self.disc_outputs = outputs

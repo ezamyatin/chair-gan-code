@@ -278,17 +278,12 @@ class Model:
                                                             self.disc_inputs['c']: c_var,
                                                             self.disc_inputs['v']: v_var,
                                                             self.disc_inputs['t']: t_var})
-        fs = get_output(self.disc_outputs['log(1-s)'],
-                        inputs={
-                            self.disc_inputs['x']: fx,
-                            self.disc_inputs['c']: c_var,
-                            self.disc_inputs['v']: v_var,
-                            self.disc_inputs['t']: t_var})
 
-        fs_1 = get_output(self.disc_outputs['log(s)'], inputs={self.disc_inputs['x']: fx,
-                                                               self.disc_inputs['c']: c_var,
-                                                               self.disc_inputs['v']: v_var,
-                                                               self.disc_inputs['t']: t_var})
+        fs, fs_1 = get_output([self.disc_outputs['log(1-s)'], self.disc_outputs['log(s)']],
+                              inputs={self.disc_inputs['x']: fx,
+                                      self.disc_inputs['c']: c_var,
+                                      self.disc_inputs['v']: v_var,
+                                      self.disc_inputs['t']: t_var})
 
         neg_s_c = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
                                                                     self.disc_inputs['c']: neg_c_var,

@@ -17,7 +17,7 @@ from dataset import H5PYDatasetAugRand
 def main(args):
     print('compile')
     start = time.time()
-    model = ModelDeepSplit(args.reg)
+    model = Model(False)#DeepSplit(args.reg)
     print('compiled in %1.3lf' % (time.time() - start))
 
     if args.weights is not None:

@@ -536,7 +536,8 @@ class ModelSplit(Model):
         gen_loss_reg = regularize_network_params(self.gen_outputs['x'],
                                                  lambda x: T.mean(x ** 2),
                                                  tags={'regularizable': True, 'dense': True}).mean()
-        gen_losses = [gen_loss_gs * 10, gen_loss_gr]
+
+        gen_losses = [gen_loss_gs, gen_loss_gr]
         if self.reg: gen_losses.append(gen_loss_reg)
         self.lr = theano.shared(np.float32(2e-4))
 

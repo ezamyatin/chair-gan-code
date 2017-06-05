@@ -9,6 +9,7 @@ from model import Model, ModelSplit, ModelDeepSplit
 import argparse
 import numpy as np
 from scipy.misc import imsave
+np.set_printoptions(suppress=True)
 
 from dataset import H5PYDatasetAugRand
 

@@ -443,14 +443,6 @@ class ModelSplit(Model):
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
         layer_x.params[layer_x.W].add('dense')
 
-        layer_r = DenseLayer(layer_x, 1024, nonlinearity=leaky_rectify)
-        layer_r.params[layer_r.W].add('dense')
-        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
-        layer_r.params[layer_r.W].add('dense')
-        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
-        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
-        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
-
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=None)
         layer_x.params[layer_x.W].add('dense')
 
@@ -459,7 +451,16 @@ class ModelSplit(Model):
         layer = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
         layer.params[layer.W].add('dense')
 
-        layer_s = layer
+        layer_r = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r = DenseLayer(layer_r, 1, nonlinearity=None)
+        layer_r.params[layer_r.W].add('dense')
+        layer_r_0 = NonlinearityLayer(layer_r, nonlinearity=sigmoid)
+        layer_r_1 = NonlinearityLayer(layer_r, nonlinearity=lambda x: x - T.log(1 + T.exp(x)))
+        layer_r_2 = NonlinearityLayer(layer_r, nonlinearity=lambda x: -T.log(1 + T.exp(x)))
+
+        layer_s = DenseLayer(layer, 1024, nonlinearity=leaky_rectify)
+        layer_s.params[layer_s.W].add('dense')
         layer_s = DenseLayer(layer_s, 1, nonlinearity=None)
         layer_s.params[layer_s.W].add('dense')
         layer_s_0 = NonlinearityLayer(layer_s, nonlinearity=sigmoid)
@@ -501,6 +502,7 @@ class ModelSplit(Model):
                                                     self.disc_inputs['v']: v_var,
                                                     self.disc_inputs['t']: t_var}, deterministic=False)
 
+        # here mb better to merge
         neg_s_c = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
                                                                     self.disc_inputs['c']: neg_c_var,
                                                                     self.disc_inputs['v']: v_var,
@@ -514,8 +516,7 @@ class ModelSplit(Model):
         neg_s_t = get_output(self.disc_outputs['log(1-s)'], inputs={self.disc_inputs['x']: x_var,
                                                                     self.disc_inputs['c']: c_var,
                                                                     self.disc_inputs['v']: v_var,
-                                                                    self.disc_inputs['t']: neg_t_var},
-                             deterministic=False)
+                                                                    self.disc_inputs['t']: neg_t_var}, deterministic=False)
 
         disc_loss_s, disc_loss_r = -s.mean(), -r.mean()
         disc_loss_gr = -gr_inv.mean()
@@ -525,7 +526,7 @@ class ModelSplit(Model):
         disc_loss_reg = regularize_network_params(self.disc_outputs['s'],
                                                   lambda x: T.mean(x ** 2),
                                                   tags={'regularizable': True, 'dense': True}).mean()
-        disc_losses = [disc_loss_s * 10, disc_loss_neg * 10, disc_loss_r, disc_loss_gr]
+        disc_losses = [disc_loss_s, disc_loss_neg, disc_loss_r, disc_loss_gr]
         if self.reg: disc_losses.append(disc_loss_reg)
 
         gen_loss_gs, gen_loss_gr = -gs.mean(), -gr.mean()

@@ -5,7 +5,7 @@ import time
 
 from tqdm import tqdm
 
-from model import Model, ModelSplit, ModelDeepSplit, ModelWOEMM
+from model import Model, ModelSplit, ModelWOEMM
 import argparse
 import numpy as np
 from scipy.misc import imsave

@@ -43,7 +43,7 @@ def main(args):
     np.random.seed(239)
     dataset = h5py.File('./data/chairs_64x64.h5', 'r')
     c = np.random.choice(np.arange(843), K)
-    v_idx = np.random.choice((np.arange(len(dataset['angle'])), K))
+    v_idx = sorted(np.random.choice((np.arange(len(dataset['angle']))), K, False))
     v = dataset['angle'][v_idx]
     t = np.float32([0, 0, 0, 1, 1, 0, 1, 1])[np.newaxis].repeat(K, axis=0)
     result = model.gen(c, v, t)

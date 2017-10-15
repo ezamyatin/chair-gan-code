@@ -424,6 +424,7 @@ class ModelSplit(Model):
         layer_i.params[layer_i.W].add('dense')
         layer_i = DenseLayer(layer_i, 1024, nonlinearity=None)
         layer_i.params[layer_i.W].add('dense')
+        layer_i = NonlinearityLayer(layer_i, lambda x: x/T.sum(x**2, axis=1, keepdims=True))
 
         layer_x = inputs['x']
         layer_x_n = layer_x
@@ -445,6 +446,7 @@ class ModelSplit(Model):
 
         layer_x = DenseLayer(layer_x, 1024, nonlinearity=None)
         layer_x.params[layer_x.W].add('dense')
+        layer_x = NonlinearityLayer(layer_x, lambda x: x/T.sum(x**2, axis=1, keepdims=True))
 
         layer = ElemwiseMergeLayer([layer_i, layer_x], T.mul)
         layer = ConcatLayer([layer, layer_x, layer_i])
